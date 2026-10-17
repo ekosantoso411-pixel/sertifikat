@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Sertifikat Workshop</title>
+    
+    <!-- Memuat Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Memuat jsPDF untuk pembuatan PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- Menggunakan font Inter dari Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Kustomisasi scrollbar ringan */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c7d2fe; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #818cf8; 
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 to-blue-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white max-w-lg w-full rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
+        
+        <!-- Header Aplikasi -->
+        <div class="bg-indigo-600 p-6 text-center">
+            <h1 class="text-2xl font-bold text-white mb-2">Sertifikat Generator</h1>
+            <p class="text-indigo-200 text-sm">Buat sertifikat format PDF secara otomatis</p>
+        </div>
+
+        <!-- Form Input Utama -->
+        <div class="p-6 space-y-6">
+            
+            <!-- Tempat Notifikasi Error/Sukses -->
+            <div id="messageBox" class="hidden p-4 rounded-lg text-sm font-medium text-center transition-all"></div>
+
+            <!-- Input Nama Peserta -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">1. Nama Peserta</label>
+                <input type="text" id="namaPeserta" placeholder="Contoh: Budi Santoso, S.Kom" 
+                    class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                />
+            </div>
+
+            <!-- Tombol Generate -->
+            <button onclick="prosesSertifikat()" id="generateBtn"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex justify-center items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Generate & Download PDF
+            </button>
+            
+        </div>
+    </div>
+
+    <!-- Canvas disembunyikan, digunakan untuk merender gambar dan teks di belakang layar -->
+    <canvas id="renderCanvas" style="display: none;"></canvas>
+
+    <script>
+        // Fungsi untuk menampilkan pesan (menggantikan fungsi alert)
+        function showMessage(msg, type = 'error') {
+            const msgBox = document.getElementById('messageBox');
+            msgBox.textContent = msg;
+            msgBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700', 'bg-blue-100', 'text-blue-700');
+            
+            if (type === 'error') {
+                msgBox.classList.add('bg-red-100', 'text-red-700');
+            } else if (type === 'success') {
+                msgBox.classList.add('bg-green-100', 'text-green-700');
+            } else {
+                msgBox.classList.add('bg-blue-100', 'text-blue-700');
+            }
+            
+            // Sembunyikan otomatis setelah 4 detik
+            setTimeout(() => {
+                msgBox.classList.add('hidden');
+            }, 4000);
+        }
+
+        // Fungsi utama untuk memproses gambar dan menjadikannya PDF
+        async function prosesSertifikat() {
+            const namaInput = document.getElementById('namaPeserta').value.trim();
+            const btn = document.getElementById('generateBtn');
+
+            // 1. Validasi Input
+            if (!namaInput) {
+                showMessage('Harap masukkan nama peserta.', 'error');
+                return;
+            }
+
+            // Ubah state tombol saat loading
+            const originalBtnText = btn.innerHTML;
+            btn.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg> Memproses...`;
+            btn.disabled = true;
+
+            try {
+                // 3. Muat template gambar otomatis
+                const img = new Image();
+                img.crossOrigin = "Anonymous"; 
+                
+                // MENGGUNAKAN LINK GAMBAR DARI BLOGGER
+                img.src = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEheKSrbIrTUwbHqVR2zJG422XIivJEtvgFJvMM6_7vnhk5bmbkZWvbu0tsDQtD2No0qEU0iMetc8CdBpCXhu7kOUvKP41T3DzniiIS6oCKIAG5RZFjiSbX_tP0bwz9Ps7SxHu69nK5etxRyE9neTzU6Lrr5XTCfZIelUsJq2xaOiyV77G3WmR77n_UTJ59y/s1600/Contoh.png";
+                
+                img.onload = function() {
+                    const canvas = document.getElementById('renderCanvas');
+                    const ctx = canvas.getContext('2d');
+
+                    // --- PENINGKATAN RESOLUSI (ANTI PECAH) ---
+                    // Kalikan dimensi dengan faktor skala (2x) untuk DPI lebih tinggi
+                    const scale = 2; 
+
+                    // Sesuaikan ukuran canvas dengan gambar asli dikalikan skala
+                    canvas.width = img.width * scale;
+                    canvas.height = img.height * scale;
+
+                    // Optimasi rendering agar garis lebih halus dan tajam
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+
+                    // Gambar background ke canvas (diperbesar sesuai skala)
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    // Konfigurasi Gaya Teks 
+                    // Ukuran font 110 dikalikan skala agar tetap proporsional dengan kanvas resolusi tinggi
+                    const fontSize = 110 * scale; 
+                    
+                    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+                    ctx.fillStyle = '#000000'; // Warna hitam
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle'; 
+
+                    // Hitung Posisi (Tepat di tengah horizontal, 45% vertikal)
+                    const posX = canvas.width / 2; 
+                    const posY = canvas.height * 0.45; 
+
+                    // Tulis teks nama ke atas gambar
+                    ctx.fillText(namaInput, posX, posY);
+
+                    // Konversi Canvas ke PDF
+                    const { jsPDF } = window.jspdf;
+                    
+                    // Menentukan orientasi berdasarkan dimensi gambar asli
+                    const orientation = img.width > img.height ? 'l' : 'p';
+                    
+                    // Buat PDF dengan ukuran HALAMAN sama dengan gambar ASLI (bukan canvas yang diperbesar)
+                    // Ini memastikan gambar beresolusi tinggi dimampatkan menjadi padat & tajam
+                    const pdf = new jsPDF(orientation, 'px', [img.width, img.height]);
+                    
+                    // Ekspor menggunakan JPEG dengan kualitas maksimal (1.0)
+                    const imgData = canvas.toDataURL('image/jpeg', 1.0); 
+                    
+                    // Masukkan gambar ke PDF dengan ukuran gambar ASLI
+                    pdf.addImage(imgData, 'JPEG', 0, 0, img.width, img.height);
+                    
+                    // Buat nama file bersih (tanpa karakter aneh)
+                    const safeName = namaInput.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                    pdf.save(`Sertifikat_${safeName}.pdf`);
+
+                    // Selesai
+                    showMessage(`Sertifikat untuk ${namaInput} berhasil diunduh!`, 'success');
+                    
+                    // Kembalikan tombol seperti semula
+                    btn.innerHTML = originalBtnText;
+                    btn.disabled = false;
+                    
+                    // Kosongkan form nama untuk input selanjutnya
+                    document.getElementById('namaPeserta').value = '';
+                };
+
+                img.onerror = function() {
+                    showMessage('Terjadi kesalahan saat memuat gambar template bawaan. Pastikan path gambar sudah benar.', 'error');
+                    btn.innerHTML = originalBtnText;
+                    btn.disabled = false;
+                };
+
+            } catch (error) {
+                console.error(error);
+                showMessage('Terjadi kesalahan sistem.', 'error');
+                btn.innerHTML = originalBtnText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
