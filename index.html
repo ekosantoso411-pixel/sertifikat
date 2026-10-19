@@ -65,6 +65,9 @@
                 />
             </div>
 
+            <!-- Status Waktu (Baru) -->
+            <div id="timeStatus" class="text-sm text-center bg-gray-50 p-3 rounded-lg hidden border border-gray-200 transition-all"></div>
+
             <!-- Tombol Generate -->
             <button onclick="prosesSertifikat()" id="generateBtn"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all flex justify-center items-center gap-2">
@@ -81,6 +84,51 @@
     <canvas id="renderCanvas" style="display: none;"></canvas>
 
     <script>
+        // --- KONFIGURASI BATAS WAKTU (UBAH DI SINI) ---
+        // Format: YYYY-MM-DDTHH:mm:ss (Tahun-Bulan-Tanggal T Jam:Menit:Detik)
+        const WAKTU_MULAI = new Date('2026-10-19T08:00:00'); // Kapan form dibuka
+        const WAKTU_SELESAI = new Date('2026-10-23T23:59:59'); // Kapan form ditutup
+
+        // Fungsi mengecek waktu
+        function checkTimeLimit() {
+            const now = new Date();
+            const inputField = document.getElementById('namaPeserta');
+            const btn = document.getElementById('generateBtn');
+            const timeStatus = document.getElementById('timeStatus');
+
+            timeStatus.classList.remove('hidden');
+
+            if (now < WAKTU_MULAI) {
+                // Belum dibuka
+                inputField.disabled = true;
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                timeStatus.innerHTML = `<span class="text-yellow-600 font-medium">Sertifikat baru dapat diunduh mulai:<br/><b>${WAKTU_MULAI.toLocaleString('id-ID')}</b></span>`;
+                return false;
+            } else if (now > WAKTU_SELESAI) {
+                // Sudah ditutup
+                inputField.disabled = true;
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                timeStatus.innerHTML = `<span class="text-red-600 font-medium">Batas waktu pengunduhan sertifikat telah berakhir pada:<br/><b>${WAKTU_SELESAI.toLocaleString('id-ID')}</b></span>`;
+                return false;
+            } else {
+                // Sedang berlangsung / Bisa diunduh
+                inputField.disabled = false;
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                timeStatus.innerHTML = `<span class="text-green-600 font-medium">Sertifikat dapat diunduh hingga:<br/><b>${WAKTU_SELESAI.toLocaleString('id-ID')}</b></span>`;
+                return true;
+            }
+        }
+
+        // Jalankan pengecekan saat halaman dimuat
+        window.onload = function() {
+            checkTimeLimit();
+            // Cek ulang setiap 1 menit berjaga-jaga jika pengguna membuka tab lama
+            setInterval(checkTimeLimit, 60000);
+        };
+
         // Fungsi untuk menampilkan pesan (menggantikan fungsi alert)
         function showMessage(msg, type = 'error') {
             const msgBox = document.getElementById('messageBox');
@@ -103,6 +151,12 @@
 
         // Fungsi utama untuk memproses gambar dan menjadikannya PDF
         async function prosesSertifikat() {
+            // 0. Validasi Waktu Ekstra (Mencegah Bypass)
+            if (!checkTimeLimit()) {
+                showMessage('Mohon maaf, pengunduhan sertifikat sedang tidak aktif/di luar jam yang ditentukan.', 'error');
+                return;
+            }
+
             const namaInput = document.getElementById('namaPeserta').value.trim();
             const btn = document.getElementById('generateBtn');
 
@@ -127,7 +181,7 @@
                 img.crossOrigin = "Anonymous"; 
                 
                 // MENGGUNAKAN LINK GAMBAR DARI BLOGGER
-                img.src = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgRKa_FC9Mzj0IyLGO8yVcAFGDyxfmYwk3r_Y_VhO3914niYpIauxhaLqsGbifel0ip4qRdgZ5hsmbF74V4Irgxkm2GoAVH38s8Qb80svnzi4TuREQZHwve6phjlzmXFNbSFHAy6Y6LozNLIvgS4eVENUcZ7YUkwv8IqufmSQ33a10twyVTpNqImCssLdC0/s1600/Sertifikat%20Pelatihan%20AI.jpg";
+                img.src = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgsrS2DRK8VsUvIF5V_1sdd3QRC6zvjQEFakeTkCUSWFmItH9L6fSo8l7QOTMLoxIedP569_1dNsRZdxmYEN5Pr8MKtqKAYHLdXoiWSnOMQOTEPhQaf-6Vyg8aCjch0HWaW7CtqSz7B7YA1K3bsH3Z57eVAchCFw0pFoh7Z31ziQmrgQcvzXXcK8TZ7ad38/s1600/Sertifikat%20Workshop%20Digital.png";
                 
                 img.onload = function() {
                     const canvas = document.getElementById('renderCanvas');
